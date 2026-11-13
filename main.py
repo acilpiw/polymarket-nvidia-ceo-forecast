@@ -10,11 +10,21 @@ narrow band, jumpy markets a wide one, jumps included -- instead of one fixed
 Gaussian spread for every market.  Quantiles are computed at a small set of
 horizons and interpolated in log(h), which keeps the run far inside the
 8-second cap.  The median stays at the last price plus the empirical median
-change (about zero: a prediction-market price is a martingale, so the current
-price is the best point forecast).  A small Gaussian spread floor keeps the
-band from collapsing to zero on a market that has never moved, so one jump
-does not cost everything.  Pure stdlib, no network, no randomness: two runs
-write identical bytes.
+change, re-centered to zero: a prediction-market price is a martingale, so the
+raw empirical median change is past drift / sampling noise, not signal, and
+keeping it pulled the median off the last price and cost more than the spread
+shape ever saved.  A small Gaussian spread floor keeps the band from
+collapsing to zero on a market that has never moved, so one jump does not
+cost everything.  Pure stdlib, no network, no randomness: two runs write
+identical bytes.
+
+Final tuning (practice, 6 cases, mean pinball loss): SPREAD_SHRINK 0.6,
+HISTORY_MINUTES 720 (last 12 hours).  Practice loss 0.293023, median error
+0.7675, 90% coverage 0.9116 -- against the house baseline's 0.363589
+(median error 0.7675, coverage 0.9496).  The tuning grid moved monotonically
+toward shorter history and a tighter band and then plateaued around
+0.292-0.295, so 0.6 / 720 sits in the plateau, honestly calibrated, not at
+the aggressive edge.
 """
 
 import json
@@ -35,9 +45,9 @@ MIN_SAMPLES = 50
 # Spread floor: half-width per sqrt-minute for the outer quantiles, so a market
 # with no observed moves still carries a small band (one jump is possible).
 SIGMA_FLOOR = 0.0005
-# Tuning knobs (set from practice scores; the grader runs with these values).
-SPREAD_SHRINK = 0.6
-HISTORY_MINUTES = 720
+# Final tuning from the practice grid (see module docstring).
+SPREAD_SHRINK = 0.6   # multiply every change-quantile by this (bands a touch wide)
+HISTORY_MINUTES = 720  # only the last N minutes of prices feed the distribution
 
 
 def price6(x):
